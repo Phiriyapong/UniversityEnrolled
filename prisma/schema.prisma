@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+  seed     = "prisma/seed.ts"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model teacher {
+  id            String           @id @default(cuid())
+  first_name    String?
+  last_name     String?
+  email         String           @unique
+  code          String           @unique
+  password      String
+  image         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  department_id Int
+  courses       course[]
+  sections      section_course[]
+  department    department       @relation(fields: [department_id], references: [id])
+
+  @@index([department_id], map: "teacher_department_id_fkey")
+}
+
+model availability {
+  id          Int      @id @default(autoincrement())
+  day         Day
+  start_time  DateTime
+  end_time    DateTime
+  user_id     String
+  user        user     @relation(fields: [user_id], references: [id])
+
+  @@index([user_id], map: "availability_user_id_fkey")
+}
+
+model user {
+  id               String           @id @default(cuid())
+  first_name       String?
+  last_name        String?
+  email            String           @unique
+  code             String           @unique
+  password         String
+  image            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  role             Role             @default(STUDENT)
+  department_id    Int
+  total_credits    Int              @default(0)
+  semester_year_id Int?
+  course_student   course_student[]
+  post             post[]
+  department       department       @relation(fields: [department_id], references: [id])
+  semester_year    semester_year?   @relation("UserSemesterYear", fields: [semester_year_id], references: [id])
+  availability     availability[]   // Relation to availability model
+
+  @@index([department_id], map: "user_department_id_fkey")
+  @@index([semester_year_id], map: "user_semester_year_id_fkey")
+}
+
+
+model post {
+  id          Int      @id @default(autoincrement())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+  createdBy   user     @relation(fields: [createdById], references: [id])
+
+  @@index([name])
+  @@index([createdById], map: "Post_createdById_fkey")
+}
+
+model news {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  publishedAt DateTime
+}
+
+model department {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String    @unique
+  create_at DateTime  @default(now())
+  update_at DateTime  @updatedAt
+  major_id  Int
+  course    course[]
+  major     major     @relation(fields: [major_id], references: [id])
+  teacher   teacher[]
+  user      user[]
+
+  @@index([major_id], map: "department_major_id_fkey")
+}
+
+model major {
+  id                Int                @id @default(autoincrement())
+  name              String
+  code              String             @unique
+  create_at         DateTime           @default(now())
+  update_at         DateTime           @updatedAt
+  department        department[]
+  mandatory_courses mandatory_course[]
+}
+
+model semester_year {
+  id               Int                @id @default(autoincrement())
+  semester_name    String
+  year_name        String
+  current_semester current_semester[]
+  section_course   section_course[]
+  users            user[]             @relation("UserSemesterYear")
+  course           course[]           @relation("course_semester_year")
+}
+
+model course {
+  id             Int                @id @default(autoincrement())
+  name           String
+  code           String             @unique
+  create_at      DateTime           @default(now())
+  update_at      DateTime           @updatedAt
+  department_id  Int
+  unit           Int
+  isActive       Boolean            @default(true)
+  teacher_id     String?
+  department     department         @relation(fields: [department_id], references: [id])
+  teacher        teacher?           @relation(fields: [teacher_id], references: [id])
+  prerequisites  course_condition[] @relation("CoursePrerequisites")
+  requiredFor    course_condition[] @relation("PrerequisiteForCourses")
+  course_student course_student[]
+  mandatory_for  mandatory_course[]
+  sections       section_course[]   @relation("course_sections")
+  semester_year  semester_year[]    @relation("course_semester_year")
+
+  @@index([department_id], map: "course_department_id_fkey")
+  @@index([teacher_id], map: "course_teacher_id_fkey")
+}
+
+model course_condition {
+  id              Int    @id @default(autoincrement())
+  course_id       Int
+  prerequisite_id Int
+  course          course @relation("CoursePrerequisites", fields: [course_id], references: [id])
+  prerequisite    course @relation("PrerequisiteForCourses", fields: [prerequisite_id], references: [id])
+
+  @@unique([course_id, prerequisite_id])
+  @@index([prerequisite_id], map: "course_condition_prerequisite_id_fkey")
+}
+
+model section_course {
+  id               Int              @id @default(autoincrement())
+  name             String
+  amount           Int
+  register_amount  Int
+  create_at        DateTime         @default(now())
+  update_at        DateTime         @updatedAt
+  semester_year_id Int
+  course_id        Int
+  teacher_id       String?
+  course_student   course_student[]
+  course           course           @relation("course_sections", fields: [course_id], references: [id])
+  semester_year    semester_year    @relation(fields: [semester_year_id], references: [id])
+  teacher          teacher?         @relation(fields: [teacher_id], references: [id])
+  section_time     section_time[]
+
+  @@index([semester_year_id], map: "section_course_semester_year_id_fkey")
+  @@index([course_id], map: "section_course_course_id_fkey")
+  @@index([teacher_id], map: "section_course_teacher_id_fkey")
+}
+
+model current_semester {
+  id               Int           @id @default(autoincrement())
+  semester_year_id Int
+  semester_year    semester_year @relation(fields: [semester_year_id], references: [id])
+
+  @@index([semester_year_id])
+}
+
+model section_time {
+  id                Int            @id @default(autoincrement())
+  date              Day
+  start_time        DateTime
+  end_time          DateTime
+  create_at         DateTime       @default(now())
+  update_at         DateTime       @updatedAt
+  section_course_id Int
+  section_course    section_course @relation(fields: [section_course_id], references: [id])
+
+  @@index([section_course_id], map: "section_time_section_course_id_fkey")
+}
+
+model course_student {
+  id                String         @id @default(cuid())
+  student_id        String?
+  section_course_id Int
+  status            PassStatus
+  course_id         Int?
+  creditsEarned     Int            @default(0)
+  course            course?        @relation(fields: [course_id], references: [id])
+  section_course    section_course @relation(fields: [section_course_id], references: [id])
+  student           user?          @relation(fields: [student_id], references: [id])
+
+  @@index([course_id], map: "course_student_course_id_fkey")
+  @@index([section_course_id], map: "course_student_section_course_id_fkey")
+  @@index([student_id], map: "course_student_user_id_fkey")
+}
+
+model mandatory_course {
+  id        Int    @id @default(autoincrement())
+  major_id  Int
+  course_id Int
+  course    course @relation(fields: [course_id], references: [id])
+  major     major  @relation(fields: [major_id], references: [id])
+
+  @@unique([major_id, course_id])
+  @@index([course_id], map: "mandatory_course_course_id_fkey")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum PassStatus {
+  Inprogress
+  Pass
+  NotPass
+}
+
+enum Day {
+  Mon
+  Tue
+  Wed
+  Thu
+  Fri
+}
